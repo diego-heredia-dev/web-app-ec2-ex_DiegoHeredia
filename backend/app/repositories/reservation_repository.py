@@ -25,4 +25,4 @@ def has_overlapping_reservation(room_id, check_in, check_out):
 def save_reservation(reservation):
     db.session.add(reservation)
     db.session.commit()
-    return reservations
+    return reservation

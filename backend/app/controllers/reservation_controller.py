@@ -4,6 +4,8 @@ from flask import Blueprint, jsonify, request
 
 from ..models import Guest, Reservation, Room, db
 from ..views.reservation_view import reservation_to_dict, reservations_to_list
+from ..services import BusinessRuleError
+from ..services.reservation_service import create_reservation as create_reservation_service
 
 reservation_bp = Blueprint("reservations", __name__, url_prefix="/api/reservations")
 
@@ -33,40 +35,42 @@ def get_reservation(reservation_id):
 def create_reservation():
     data = request.get_json(silent=True) or {}
 
-    missing = [f for f in ("room_id", "guest_id", "check_in", "check_out", "guests_count") if data.get(f) in (None, "")]
+    missing = [
+        f for f in ("room_id", "guest_id", "check_in", "check_out", "guests_count")
+        if data.get(f) in (None, "")
+    ]
+
     if missing:
         return jsonify({"error": f"Faltan campos: {', '.join(missing)}"}), 400
-
-    room = db.session.get(Room, int(data["room_id"]))
-    if room is None:
-        return jsonify({"error": "Habitación no encontrada"}), 404
-    guest = db.session.get(Guest, int(data["guest_id"]))
-    if guest is None:
-        return jsonify({"error": "Huésped no encontrado"}), 404
 
     try:
         check_in = date.fromisoformat(data["check_in"])
         check_out = date.fromisoformat(data["check_out"])
+        room_id = int(data["room_id"])
+        guest_id = int(data["guest_id"])
         guests_count = int(data["guests_count"])
+
     except (TypeError, ValueError):
-        return jsonify({"error": "Fechas en formato AAAA-MM-DD y guests_count numérico"}), 400
+        return jsonify({
+            "error": "Datos inválidos. Verifique las fechas y los valores numéricos."
+        }), 400
 
-    nights = (check_out - check_in).days
-    total_price = nights * room.price_per_night
+    try:
+        reservation = create_reservation_service(
+            room_id,
+            guest_id,
+            check_in,
+            check_out,
+            guests_count
+        )
 
-    reservation = Reservation(
-        room=room,
-        guest=guest,
-        check_in=check_in,
-        check_out=check_out,
-        guests_count=guests_count,
-        status="confirmed",
-        total_price=total_price,
-    )
-    db.session.add(reservation)
-    db.session.commit()
+    except BusinessRuleError as error:
+        return jsonify({"error": str(error)}), 422
+
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 404
+
     return jsonify(reservation_to_dict(reservation)), 201
-
 
 @reservation_bp.patch("/<int:reservation_id>/cancel")
 def cancel_reservation(reservation_id):

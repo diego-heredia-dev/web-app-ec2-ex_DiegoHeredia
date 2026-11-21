@@ -39,3 +39,12 @@
 ## 10. Check-out válido
 - **Regla:** Solo se puede realizar el check-out de una reserva que previamente haya registrado un check-in.
 - **Respuesta API:** HTTP 422 - `{"error": "No se puede realizar el check-out sin haber registrado el check-in."}`
+
+
+
+#	Regla	Dificultad	Dónde se aplica
+1	Fechas válidas	Fácil	Crear reserva
+2	Reservas futuras	Fácil	Crear reserva
+3	Capacidad de habitación	Fácil	Crear reserva
+4	Habitaciones en mantenimiento	Fácil	Crear reserva
+5	Disponibilidad de habitación	Media	Crear reserva
