@@ -1,6 +1,17 @@
 // URL del backend: mismo host desde donde se abrió la página, puerto 8000.
 // Funciona igual en localhost y en la IP pública de la EC2.
-const API = `${location.protocol}//${location.hostname}:8000/api`;
+import {
+  listRooms,
+  createRoom,
+  updateRoom,
+  deleteRoom,
+  listGuests,
+  createGuest,
+  deleteGuest,
+  listReservations,
+  createReservation,
+  updateReservation
+} from "./api.js";
 
 const ROOM_TYPES = { single: "Simple", double: "Doble", family: "Familiar", suite: "Suite" };
 const STATUS_LABELS = {
@@ -35,8 +46,7 @@ document.querySelectorAll(".tabs button").forEach((button) => {
 // ---------- habitaciones ----------
 async function loadRooms() {
   try {
-    const res = await fetch(API + "/rooms");
-    const rooms = await res.json();
+    const rooms = await listRooms();
     const body = document.getElementById("rooms-body");
     if (rooms.length === 0) {
       body.innerHTML = '<tr><td colspan="6" class="empty">No hay habitaciones</td></tr>';
@@ -72,30 +82,27 @@ document.getElementById("room-form").addEventListener("submit", async (event) =>
   data.price_per_night = Number(data.price_per_night);
   data.capacity = Number(data.capacity);
 
-  const res = await fetch(API + "/rooms", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await createRoom(data);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
+
   form.reset();
   showMessage("Habitación " + body.number + " creada");
   loadRooms();
 });
 
 async function toggleMaintenance(id, status) {
-  const res = await fetch(API + "/rooms/" + id, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: status === "maintenance" ? "available" : "maintenance" }),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  try {
+    await updateRoom(id, {
+      status: status === "maintenance" ? "available" : "maintenance"
+    });
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   loadRooms();
@@ -103,10 +110,11 @@ async function toggleMaintenance(id, status) {
 
 async function deleteRoom(id) {
   if (!confirm("¿Eliminar la habitación?")) return;
-  const res = await fetch(API + "/rooms/" + id, { method: "DELETE" });
-  if (!res.ok) {
-    const body = await res.json();
-    showMessage(body.error, true);
+
+  try {
+    await deleteRoom(id);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   showMessage("Habitación eliminada");
@@ -116,8 +124,7 @@ async function deleteRoom(id) {
 // ---------- huéspedes ----------
 async function loadGuests() {
   try {
-    const res = await fetch(API + "/guests");
-    const guests = await res.json();
+    const guests = await listGuests();
     const body = document.getElementById("guests-body");
     if (guests.length === 0) {
       body.innerHTML = '<tr><td colspan="4" class="empty">No hay huéspedes</td></tr>';
@@ -143,16 +150,15 @@ document.getElementById("guest-form").addEventListener("submit", async (event) =
   const form = event.target;
   const data = Object.fromEntries(new FormData(form));
 
-  const res = await fetch(API + "/guests", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await createGuest(data);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
+
   form.reset();
   showMessage("Huésped " + body.full_name + " registrado");
   loadGuests();
@@ -160,10 +166,10 @@ document.getElementById("guest-form").addEventListener("submit", async (event) =
 
 async function deleteGuest(id) {
   if (!confirm("¿Eliminar el huésped?")) return;
-  const res = await fetch(API + "/guests/" + id, { method: "DELETE" });
-  if (!res.ok) {
-    const body = await res.json();
-    showMessage(body.error, true);
+  try {
+    await deleteGuest(id);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   showMessage("Huésped eliminado");
@@ -174,8 +180,7 @@ async function deleteGuest(id) {
 async function loadReservations() {
   try {
     const status = document.getElementById("reservation-filter").value;
-    const res = await fetch(API + "/reservations" + (status ? "?status=" + status : ""));
-    const reservations = await res.json();
+    const reservations = await listReservations(status);
     const body = document.getElementById("reservations-body");
     if (reservations.length === 0) {
       body.innerHTML = '<tr><td colspan="10" class="empty">No hay reservas</td></tr>';
@@ -213,14 +218,12 @@ document.getElementById("reservation-form").addEventListener("submit", async (ev
   data.guest_id = Number(data.guest_id);
   data.guests_count = Number(data.guests_count);
 
-  const res = await fetch(API + "/reservations", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await createReservation(data);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   form.reset();
@@ -229,10 +232,12 @@ document.getElementById("reservation-form").addEventListener("submit", async (ev
 });
 
 async function changeReservation(id, action) {
-  const res = await fetch(API + "/reservations/" + id + "/" + action, { method: "PATCH" });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await updateReservation(id, action);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   showMessage("Reserva #" + id + ": " + STATUS_LABELS[body.status]);
