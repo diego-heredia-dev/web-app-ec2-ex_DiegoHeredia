@@ -82,3 +82,16 @@ Valores válidos:
 - Fechas en formato `AAAA-MM-DD`; precios en bolivianos.
 
 Los errores se devuelven como `{ "error": "mensaje" }` con el código HTTP correspondiente.
+
+
+### Arquitectura del backend
+
+El backend utiliza una arquitectura por capas para separar responsabilidades:
+
+- **controllers/**: reciben las peticiones HTTP, validan los datos de entrada y devuelven las respuestas de la API.
+- **services/**: implementan las reglas de negocio y coordinan los casos de uso. No dependen de Flask.
+- **repositories/**: gestionan el acceso a la base de datos mediante consultas y operaciones CRUD.
+- **models/**: definen los modelos y las entidades de la base de datos.
+- **views/**: transforman los modelos en estructuras JSON para las respuestas de la API.
+
+Las excepciones de negocio se centralizan en `app/__init__.py`, donde se convierten en respuestas HTTP.

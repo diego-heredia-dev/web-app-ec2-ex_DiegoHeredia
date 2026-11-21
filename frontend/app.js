@@ -1,6 +1,17 @@
 // URL del backend: mismo host desde donde se abrió la página, puerto 8000.
 // Funciona igual en localhost y en la IP pública de la EC2.
-const API = `${location.protocol}//${location.hostname}:8000/api`;
+import {
+  listRooms,
+  createRoom,
+  updateRoom,
+  deleteRoom as deleteRoomAPI,
+  listGuests,
+  createGuest,
+  deleteGuest as deleteGuestAPI,
+  listReservations,
+  createReservation,
+  updateReservation
+} from "./api.js";
 
 const ROOM_TYPES = { single: "Simple", double: "Doble", family: "Familiar", suite: "Suite" };
 const STATUS_LABELS = {
@@ -16,18 +27,27 @@ function esc(value) {
 function showMessage(text, isError) {
   const msg = document.getElementById("msg");
   msg.textContent = text;
-  msg.className = isError ? "msg error" : "msg";
+  msg.className = isError
+    ? "notification notification--error"
+    : "notification";
   msg.hidden = false;
   clearTimeout(showMessage.timer);
   showMessage.timer = setTimeout(() => { msg.hidden = true; }, 4000);
 }
 
 // ---------- pestañas ----------
-document.querySelectorAll(".tabs button").forEach((button) => {
+document.querySelectorAll(".tabs__button").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
-    button.classList.add("active");
-    document.querySelectorAll(".tab").forEach((tab) => { tab.hidden = true; });
+    document.querySelectorAll(".tabs__button").forEach((b) => {
+      b.classList.remove("tabs__button--active");
+    });
+
+    button.classList.add("tabs__button--active");
+
+    document.querySelectorAll(".page-section").forEach((section) => {
+      section.hidden = true;
+    });
+
     document.getElementById("tab-" + button.dataset.tab).hidden = false;
   });
 });
@@ -35,11 +55,10 @@ document.querySelectorAll(".tabs button").forEach((button) => {
 // ---------- habitaciones ----------
 async function loadRooms() {
   try {
-    const res = await fetch(API + "/rooms");
-    const rooms = await res.json();
+    const rooms = await listRooms();
     const body = document.getElementById("rooms-body");
     if (rooms.length === 0) {
-      body.innerHTML = '<tr><td colspan="6" class="empty">No hay habitaciones</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="empty-state">No hay habitaciones</td></tr>';
     } else {
       body.innerHTML = rooms.map((r) => `
         <tr>
@@ -47,12 +66,12 @@ async function loadRooms() {
           <td>${esc(ROOM_TYPES[r.type] || r.type)}</td>
           <td>Bs ${esc(r.price_per_night)}</td>
           <td>${esc(r.capacity)}</td>
-          <td><span class="badge ${esc(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
+          <td><span class="status-badge status-badge--${esc(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
           <td>
-            <button class="btn btn-small btn-gray" onclick="toggleMaintenance(${r.id}, '${esc(r.status)}')">
+            <button class="button button--small button--secondary" onclick="toggleMaintenance(${r.id}, '${esc(r.status)}')">
               ${r.status === "maintenance" ? "Habilitar" : "Mantenimiento"}
             </button>
-            <button class="btn btn-small btn-red" onclick="deleteRoom(${r.id})">Eliminar</button>
+            <button class="button button--small button--danger" onclick="deleteRoom(${r.id})">Eliminar</button>
           </td>
         </tr>`).join("");
     }
@@ -72,30 +91,27 @@ document.getElementById("room-form").addEventListener("submit", async (event) =>
   data.price_per_night = Number(data.price_per_night);
   data.capacity = Number(data.capacity);
 
-  const res = await fetch(API + "/rooms", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await createRoom(data);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
+
   form.reset();
   showMessage("Habitación " + body.number + " creada");
   loadRooms();
 });
 
 async function toggleMaintenance(id, status) {
-  const res = await fetch(API + "/rooms/" + id, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: status === "maintenance" ? "available" : "maintenance" }),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  try {
+    await updateRoom(id, {
+      status: status === "maintenance" ? "available" : "maintenance"
+    });
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   loadRooms();
@@ -103,10 +119,11 @@ async function toggleMaintenance(id, status) {
 
 async function deleteRoom(id) {
   if (!confirm("¿Eliminar la habitación?")) return;
-  const res = await fetch(API + "/rooms/" + id, { method: "DELETE" });
-  if (!res.ok) {
-    const body = await res.json();
-    showMessage(body.error, true);
+
+  try {
+    await deleteRoomAPI(id);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   showMessage("Habitación eliminada");
@@ -116,18 +133,17 @@ async function deleteRoom(id) {
 // ---------- huéspedes ----------
 async function loadGuests() {
   try {
-    const res = await fetch(API + "/guests");
-    const guests = await res.json();
+    const guests = await listGuests();
     const body = document.getElementById("guests-body");
     if (guests.length === 0) {
-      body.innerHTML = '<tr><td colspan="4" class="empty">No hay huéspedes</td></tr>';
+      body.innerHTML = '<tr><td colspan="4" class="empty-state">No hay huéspedes</td></tr>';
     } else {
       body.innerHTML = guests.map((g) => `
         <tr>
           <td>${esc(g.full_name)}</td>
           <td>${esc(g.email)}</td>
           <td>${esc(g.document)}</td>
-          <td><button class="btn btn-small btn-red" onclick="deleteGuest(${g.id})">Eliminar</button></td>
+          <td><button class="button button--small button--danger" onclick="deleteGuest(${g.id})">Eliminar</button></td>
         </tr>`).join("");
     }
     document.getElementById("reservation-guest").innerHTML = guests
@@ -143,16 +159,15 @@ document.getElementById("guest-form").addEventListener("submit", async (event) =
   const form = event.target;
   const data = Object.fromEntries(new FormData(form));
 
-  const res = await fetch(API + "/guests", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await createGuest(data);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
+
   form.reset();
   showMessage("Huésped " + body.full_name + " registrado");
   loadGuests();
@@ -160,10 +175,10 @@ document.getElementById("guest-form").addEventListener("submit", async (event) =
 
 async function deleteGuest(id) {
   if (!confirm("¿Eliminar el huésped?")) return;
-  const res = await fetch(API + "/guests/" + id, { method: "DELETE" });
-  if (!res.ok) {
-    const body = await res.json();
-    showMessage(body.error, true);
+  try {
+    await deleteGuestAPI(id);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   showMessage("Huésped eliminado");
@@ -174,11 +189,10 @@ async function deleteGuest(id) {
 async function loadReservations() {
   try {
     const status = document.getElementById("reservation-filter").value;
-    const res = await fetch(API + "/reservations" + (status ? "?status=" + status : ""));
-    const reservations = await res.json();
+    const reservations = await listReservations(status);
     const body = document.getElementById("reservations-body");
     if (reservations.length === 0) {
-      body.innerHTML = '<tr><td colspan="10" class="empty">No hay reservas</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" class="empty-state">No hay reservas</td></tr>';
       return;
     }
     body.innerHTML = reservations.map((r) => `
@@ -191,11 +205,11 @@ async function loadReservations() {
         <td>${esc(r.nights)}</td>
         <td>${esc(r.guests_count)}</td>
         <td>${esc(r.total_price)}</td>
-        <td><span class="badge ${esc(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
+        <td><span class="status-badge status-badge--${esc(r.status)}">${esc(STATUS_LABELS[r.status])}</span></td>
         <td>
-          <button class="btn btn-small btn-green" onclick="changeReservation(${r.id}, 'check-in')">Check-in</button>
-          <button class="btn btn-small" onclick="changeReservation(${r.id}, 'check-out')">Check-out</button>
-          <button class="btn btn-small btn-red" onclick="changeReservation(${r.id}, 'cancel')">Cancelar</button>
+          <button class="button button--small button--success" onclick="changeReservation(${r.id}, 'check-in')">Check-in</button>
+          <button class="button button--small" onclick="changeReservation(${r.id}, 'check-out')">Check-out</button>
+          <button class="button button--small button--danger" onclick="changeReservation(${r.id}, 'cancel')">Cancelar</button>
         </td>
       </tr>`).join("");
   } catch (error) {
@@ -213,14 +227,12 @@ document.getElementById("reservation-form").addEventListener("submit", async (ev
   data.guest_id = Number(data.guest_id);
   data.guests_count = Number(data.guests_count);
 
-  const res = await fetch(API + "/reservations", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await createReservation(data);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   form.reset();
@@ -229,10 +241,12 @@ document.getElementById("reservation-form").addEventListener("submit", async (ev
 });
 
 async function changeReservation(id, action) {
-  const res = await fetch(API + "/reservations/" + id + "/" + action, { method: "PATCH" });
-  const body = await res.json();
-  if (!res.ok) {
-    showMessage(body.error, true);
+  let body;
+
+  try {
+    body = await updateReservation(id, action);
+  } catch (error) {
+    showMessage(error.message, true);
     return;
   }
   showMessage("Reserva #" + id + ": " + STATUS_LABELS[body.status]);
