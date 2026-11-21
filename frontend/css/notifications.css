@@ -1,0 +1,12 @@
+.notification {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  background: #e0efe6;
+  color: var(--color-success);
+}
+
+.notification--error {
+  background: #f7e1df;
+  color: var(--color-danger);
+}
