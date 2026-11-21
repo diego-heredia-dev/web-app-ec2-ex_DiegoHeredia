@@ -4,10 +4,10 @@ import {
   listRooms,
   createRoom,
   updateRoom,
-  deleteRoom,
+  deleteRoom as deleteRoomAPI,
   listGuests,
   createGuest,
-  deleteGuest,
+  deleteGuest as deleteGuestAPI,
   listReservations,
   createReservation,
   updateReservation
@@ -112,7 +112,7 @@ async function deleteRoom(id) {
   if (!confirm("¿Eliminar la habitación?")) return;
 
   try {
-    await deleteRoom(id);
+    await deleteRoomAPI(id);
   } catch (error) {
     showMessage(error.message, true);
     return;
@@ -167,7 +167,7 @@ document.getElementById("guest-form").addEventListener("submit", async (event) =
 async function deleteGuest(id) {
   if (!confirm("¿Eliminar el huésped?")) return;
   try {
-    await deleteGuest(id);
+    await deleteGuestAPI(id);
   } catch (error) {
     showMessage(error.message, true);
     return;
