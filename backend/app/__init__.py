@@ -7,7 +7,7 @@ from .controllers.room_controller import room_bp
 from .controllers.guest_controller import guest_bp
 from .controllers.reservation_controller import reservation_bp
 from .seed import seed
-from .services import BusinessRuleError, NotFoundError
+from .services import BusinessRuleError, NotFoundError, ConflictError
 
 
 def create_app(overrides=None):
@@ -31,6 +31,10 @@ def create_app(overrides=None):
     @app.errorhandler(NotFoundError)
     def handle_not_found_error(error):
         return jsonify({"error": str(error)}), 404
+
+    @app.errorhandler(ConflictError)
+    def handle_conflict_error(error):
+        return jsonify({"error": str(error)}), 409
 
     @app.get("/api/health")
     def health():

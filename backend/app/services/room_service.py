@@ -1,5 +1,5 @@
 from ..repositories import room_repository
-from . import NotFoundError, BusinessRuleError
+from . import NotFoundError, BusinessRuleError, ConflictError
 
 ROOM_TYPES = ("single", "double", "family", "suite")
 ROOM_STATUSES = ("available", "maintenance")
@@ -30,7 +30,7 @@ def create_room(number, room_type, price, capacity, status):
         )
 
     if room_repository.get_room_by_number(number):
-        raise BusinessRuleError(
+        raise ConflictError(
             "Ya existe una habitación con ese número"
         )
 
