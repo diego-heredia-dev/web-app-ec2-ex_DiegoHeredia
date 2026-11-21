@@ -60,3 +60,81 @@ def test_reservation_status_changes(client, room, guest):
 
 def test_reservation_not_found(client):
     assert client.patch("/api/reservations/999/cancel").status_code == 404
+
+def test_reservation_invalid_dates(client, room, guest):
+    start = date.today() + timedelta(days=5)
+
+    res = client.post("/api/reservations", json={
+        "room_id": room["id"],
+        "guest_id": guest["id"],
+        "check_in": start.isoformat(),
+        "check_out": start.isoformat(),
+        "guests_count": 1,
+    })
+
+    assert res.status_code == 422
+    assert "error" in res.get_json()
+
+def test_reservation_in_the_past(client, room, guest):
+    yesterday = date.today() - timedelta(days=1)
+
+    res = client.post("/api/reservations", json={
+        "room_id": room["id"],
+        "guest_id": guest["id"],
+        "check_in": yesterday.isoformat(),
+        "check_out": (yesterday + timedelta(days=2)).isoformat(),
+        "guests_count": 1,
+    })
+
+    assert res.status_code == 422
+
+def test_reservation_exceeds_room_capacity(client, room, guest):
+    start = date.today() + timedelta(days=5)
+
+    res = client.post("/api/reservations", json={
+        "room_id": room["id"],
+        "guest_id": guest["id"],
+        "check_in": start.isoformat(),
+        "check_out": (start + timedelta(days=2)).isoformat(),
+        "guests_count": 3,
+    })
+
+    assert res.status_code == 422
+
+def test_reservation_room_in_maintenance(client, room, guest):
+    client.put(f"/api/rooms/{room['id']}", json={
+        "status": "maintenance"
+    })
+
+    start = date.today() + timedelta(days=5)
+
+    res = client.post("/api/reservations", json={
+        "room_id": room["id"],
+        "guest_id": guest["id"],
+        "check_in": start.isoformat(),
+        "check_out": (start + timedelta(days=2)).isoformat(),
+        "guests_count": 1,
+    })
+
+    assert res.status_code == 422
+
+def test_reservation_overlapping_dates(client, room, guest):
+    start = date.today() + timedelta(days=5)
+
+    client.post("/api/reservations", json={
+        "room_id": room["id"],
+        "guest_id": guest["id"],
+        "check_in": start.isoformat(),
+        "check_out": (start + timedelta(days=4)).isoformat(),
+        "guests_count": 1,
+    })
+
+    res = client.post("/api/reservations", json={
+        "room_id": room["id"],
+        "guest_id": guest["id"],
+        "check_in": (start + timedelta(days=2)).isoformat(),
+        "check_out": (start + timedelta(days=6)).isoformat(),
+        "guests_count": 1,
+    })
+
+    assert res.status_code == 422
