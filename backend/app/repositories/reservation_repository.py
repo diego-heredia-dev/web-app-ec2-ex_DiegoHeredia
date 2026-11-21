@@ -13,6 +13,18 @@ def get_reservation(reservation_id):
     return db.session.get(Reservation, reservation_id)
 
 
+def get_all_reservations(status=None, guest_id=None):
+    query = Reservation.query
+
+    if status:
+        query = query.filter_by(status=status)
+
+    if guest_id:
+        query = query.filter_by(guest_id=guest_id)
+
+    return query.order_by(Reservation.check_in).all()
+
+
 def has_overlapping_reservation(room_id, check_in, check_out):
     return Reservation.query.filter(
         Reservation.room_id == room_id,
@@ -22,7 +34,24 @@ def has_overlapping_reservation(room_id, check_in, check_out):
     ).first() is not None
 
 
-def save_reservation(reservation):
+def create_reservation(room, guest, check_in, check_out, guests_count, total_price):
+    reservation = Reservation(
+        room=room,
+        guest=guest,
+        check_in=check_in,
+        check_out=check_out,
+        guests_count=guests_count,
+        status="confirmed",
+        total_price=total_price,
+    )
+
     db.session.add(reservation)
+    db.session.commit()
+
+    return reservation
+
+
+def update_reservation_status(reservation, status):
+    reservation.status = status
     db.session.commit()
     return reservation
